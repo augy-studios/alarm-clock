@@ -762,7 +762,10 @@ function buildThemeModal() {
   });
 
   document.getElementById("modeToggle").addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-mode]");
+    // .mode-btn, not [data-mode]: <html> carries data-mode too, so a click in
+    // the gap between buttons would otherwise walk up to it and store the
+    // resolved mode over a "time" preference.
+    const btn = e.target.closest(".mode-btn");
     if (!btn) return;
     applyMode(btn.dataset.mode);
     syncThemeModalState();
