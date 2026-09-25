@@ -1,7 +1,7 @@
 /* Bump VERSION on every deploy that changes anything this worker serves.
    The browser only sees an update when this file changes byte for byte, so a
    forgotten bump means nobody gets the new version or the update bar. */
-const VERSION = "2026-09-24.1";
+const VERSION = "2026-09-25.1";
 const CACHE = `alarm-${VERSION}`;
 
 // Not "/index.html": cleanUrls redirects it to "/", and a redirected response
@@ -15,6 +15,7 @@ const ASSETS = [
   "/js/icons.js",
   "/js/ui.js",
   "/js/update.js",
+  "/js/push.js",
   "/XAC-192.png",
   "/XAC-512.png",
   "/favicon.ico",
@@ -62,10 +63,64 @@ self.addEventListener('message', (event) => {
   }
 });
 
-/* -- Notification click: bring the app forward -- */
+/* -- Push: an alarm rung by the push server (push-server/ in this repo) -- */
+
+// Keep in step with API_BASE in js/push.js.
+const API_BASE = 'https://alarm-push.uwuapps.org';
+
+// Keep in step with alarmTag() in script.js. The page shows a notification
+// with the same tag when it rings, so the two replace each other.
+function alarmTag(id, fireKey) {
+  return `alarm-${id}-${fireKey}`;
+}
+
+self.addEventListener('push', event => {
+  let data = null;
+  try {
+    data = event.data?.json();
+  } catch {}
+  if (data?.type !== 'alarm') return;
+
+  const tag = alarmTag(data.alarmId, data.fireKey);
+  event.waitUntil(Promise.all([
+    // An open page rings for itself; this lets it catch alarms it missed and
+    // server-side snoozes it never knew about.
+    postToClients({ ...data, type: 'alarm-fired', receivedAt: Date.now() }),
+    self.registration.showNotification('Alarm', {
+      body: data.label || 'Alarm',
+      tag,
+      icon: '/XAC-192.png',
+      badge: '/XAC-192.png',
+      requireInteraction: true,
+      vibrate: [300, 150, 300, 150, 600, 150, 300, 150, 300, 150, 600],
+      actions: [
+        { action: 'snooze', title: 'Snooze 5 min' },
+        { action: 'stop', title: 'Stop' }
+      ],
+      data: { deviceId: data.deviceId, label: data.label }
+    })
+  ]));
+});
+
+async function postToClients(message) {
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  clients.forEach(c => c.postMessage(message));
+}
+
+/* -- Notification click: snooze, stop, or bring the app forward -- */
 
 self.addEventListener('notificationclick', event => {
-  event.notification.close();
+  const { notification, action } = event;
+  notification.close();
+
+  if (action === 'snooze' || action === 'stop') {
+    event.waitUntil(Promise.all([
+      postToClients({ type: 'alarm-dismissed', tag: notification.tag }),
+      action === 'snooze' ? snooze(notification.data) : null
+    ]));
+    return;
+  }
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     .then(clients => {
@@ -74,6 +129,24 @@ self.addEventListener('notificationclick', event => {
     })
   );
 });
+
+// Swiping a ringing alarm away counts as Stop.
+self.addEventListener('notificationclose', event => {
+  event.waitUntil(postToClients({ type: 'alarm-dismissed', tag: event.notification.tag }));
+});
+
+// The server keeps the snooze and pushes again in five minutes. Only possible
+// for notifications that came from a push, since those carry the device id.
+async function snooze(data) {
+  if (!data?.deviceId) return;
+  try {
+    await fetch(`${API_BASE}/v1/devices/${data.deviceId}/snooze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: data.label })
+    });
+  } catch {}
+}
 
 /* -- Fetch: strategy per route -- */
 

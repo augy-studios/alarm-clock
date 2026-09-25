@@ -1,5 +1,6 @@
 // Alarm Clock
 import { icon } from './js/icons.js';
+import { enableBackgroundAlarms, onServerFired, syncAlarms } from './js/push.js';
 
 const el = (id) => document.getElementById(id);
 
@@ -51,6 +52,7 @@ let currentAudioUrl = null;
 let ticking = null;
 let isRinging = false;
 let currentAlarmId = null;
+let currentTag = null; // notification tag of the alarm ringing now
 
 // -------- IndexedDB for uploaded ringtones ----------
 const DB_NAME = 'alarmClOwOckDB';
@@ -116,6 +118,7 @@ tick(); // first paint
 scheduleTick(); // steady updates
 updateDateString();
 populateUploadsInSelect(); // load uploaded tones into the dropdown
+initNotifications();
 
 // ---------- Events ----------
 formatToggle.addEventListener('change', () => {
@@ -140,16 +143,14 @@ notifBtn.addEventListener('click', async () => {
       return;
     }
     const perm = await Notification.requestPermission();
-    if (perm === 'granted') {
-      notifBtn.textContent = 'Notifications On';
-      notifBtn.classList.add('primary');
-      notify('Notifications enabled', {
-        body: 'Alarms will also show system notifications.'
-      });
-    } else {
-      notifBtn.textContent = 'Enable Notifications';
-      notifBtn.classList.remove('primary');
-    }
+    showNotifState(perm === 'granted');
+    if (perm !== 'granted') return;
+    const background = await enableBackgroundAlarms(alarms);
+    notify('Notifications enabled', {
+      body: background ?
+        'Alarms will ring even when the app is closed.' :
+        'Alarms will show system notifications. Keep the app open for them to ring.'
+    });
   } catch {}
 });
 
@@ -203,7 +204,7 @@ alarmForm.addEventListener('submit', (e) => {
   };
 
   alarms.push(item);
-  save(STORE_KEY, alarms);
+  saveAlarms();
   renderAlarms();
   alarmForm.reset();
 });
@@ -230,7 +231,7 @@ snoozeBtn.addEventListener('click', () => {
     lastFireKey: null
   };
   alarms.push(item);
-  save(STORE_KEY, alarms);
+  saveAlarms();
   stopRinging();
   renderAlarms();
 });
@@ -284,22 +285,101 @@ async function checkAlarms(now) {
 
     if (a.lastFireKey === key) continue; // once per minute
 
-    a.lastFireKey = key;
-    save(STORE_KEY, alarms);
+    await fire(a, key);
+  }
+}
 
-    await ring(a);
-    // Disable one-time alarms
-    if (!a.days || a.days.length === 0) {
-      a.enabled = false;
-      save(STORE_KEY, alarms);
+async function fire(a, key) {
+  markFired(a, key);
+  saveAlarms();
+  renderAlarms();
+  await ring(a);
+}
+
+// Records that an alarm rang at `key` ("YYYY-MM-DD HH:MM"). One-time alarms
+// turn off once they have rung.
+function markFired(a, key) {
+  a.lastFireKey = key;
+  if (!a.days || a.days.length === 0) a.enabled = false;
+}
+
+// ---------- Background alarms (push server) ----------
+
+function initNotifications() {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  showNotifState(true);
+  // Re-sends the alarms on every load, which also refreshes the subscription
+  // and picks up anything the server rang while the app was closed.
+  enableBackgroundAlarms(alarms);
+}
+
+function showNotifState(on) {
+  notifBtn.textContent = on ? 'Notifications On' : 'Enable Notifications';
+  notifBtn.classList.toggle('primary', on);
+}
+
+function saveAlarms() {
+  save(STORE_KEY, alarms);
+  syncAlarms(alarms);
+}
+
+// A ring relayed from the service worker is only acted on this soon after it
+// arrived. A page resumed from the background much later would otherwise
+// start ringing for an alarm the notification already announced.
+const LIVE_PUSH_MS = 60_000;
+
+onServerFired(({ fired, push }) => {
+  if (fired) {
+    // After a sync: catch up on alarms the server rang while the page was
+    // closed, without ringing them again.
+    let changed = false;
+    for (const a of alarms) {
+      const key = fired[a.id];
+      if (key && key > (a.lastFireKey || '')) {
+        markFired(a, key);
+        changed = true;
+      }
+    }
+    if (changed) {
+      save(STORE_KEY, alarms); // no re-sync: the server already has this
       renderAlarms();
     }
+    return;
   }
+
+  const fresh = Date.now() - push.receivedAt < LIVE_PUSH_MS;
+  const a = alarms.find(x => x.id === push.alarmId);
+  if (a) {
+    if (a.lastFireKey && a.lastFireKey >= push.fireKey) return; // page already rang it
+    if (fresh) fire(a, push.fireKey);
+    else {
+      markFired(a, push.fireKey);
+      saveAlarms();
+      renderAlarms();
+    }
+  } else if (fresh && !isRinging) {
+    // A snooze set from a notification lives only on the server.
+    ring({
+      id: push.alarmId,
+      label: push.label,
+      tone: 'chime',
+      lastFireKey: push.fireKey
+    });
+  }
+});
+
+// Stop or Snooze pressed on the notification, or the notification swiped
+// away, while this page is ringing the same alarm.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'alarm-dismissed' && event.data.tag === currentTag) stopRinging();
+  });
 }
 
 async function ring(alarm) {
   isRinging = true;
   currentAlarmId = alarm.id;
+  currentTag = alarmTag(alarm.id, alarm.lastFireKey);
   ringingTitle.textContent = alarm.label || 'Alarm';
   ringingBox.classList.remove('hidden');
 
@@ -309,19 +389,38 @@ async function ring(alarm) {
     navigator.vibrate && navigator.vibrate([300, 150, 300, 150, 600]);
   } catch {}
 
+  // Same tag as the service worker uses for the push, so when both show one
+  // for the same ring the second replaces the first instead of stacking.
   notify('Alarm', {
     body: alarm.label || 'Alarm',
+    tag: currentTag,
     silent: false
   });
 }
 
+// Keep in step with alarmTag() in sw.js.
+function alarmTag(id, fireKey) {
+  return `alarm-${id}-${fireKey}`;
+}
+
 function stopRinging() {
+  const tag = currentTag;
   isRinging = false;
   currentAlarmId = null;
+  currentTag = null;
   ringingBox.classList.add('hidden');
   stopTone();
   try {
     navigator.vibrate && navigator.vibrate(0);
+  } catch {}
+  if (tag) closeNotifications(tag);
+}
+
+async function closeNotifications(tag) {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    const list = await reg?.getNotifications({ tag });
+    list?.forEach(n => n.close());
   } catch {}
 }
 
@@ -384,7 +483,7 @@ function renderAlarms() {
     toggle.setAttribute('aria-label', `Enable ${a.label || 'alarm'}`);
     toggle.addEventListener('change', () => {
       a.enabled = toggle.checked;
-      save(STORE_KEY, alarms);
+      saveAlarms();
     });
     li.appendChild(toggle);
 
@@ -410,7 +509,7 @@ function renderAlarms() {
     delBtn.innerHTML = icon('close');
     delBtn.addEventListener('click', () => {
       alarms = alarms.filter(x => x.id !== a.id);
-      save(STORE_KEY, alarms);
+      saveAlarms();
       renderAlarms();
     });
     actions.appendChild(delBtn);

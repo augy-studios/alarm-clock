@@ -1,0 +1,27 @@
+[Unit]
+Description=Alarm Clock push server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/alarm-clock/push-server
+ExecStart=/usr/bin/node server.js
+EnvironmentFile=/etc/alarm-push.env
+Environment=NODE_ENV=production
+Environment=DATA_FILE=/var/lib/alarm-push/devices.json
+Restart=always
+RestartSec=2
+
+# Runs as a throwaway user with no login. /var/lib/alarm-push is created for
+# it and kept across restarts; everything else is read-only.
+DynamicUser=yes
+StateDirectory=alarm-push
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

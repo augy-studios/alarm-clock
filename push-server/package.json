@@ -1,0 +1,20 @@
+{
+  "name": "alarm-push-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sends Web Push messages so Alarm Clock alarms ring while the app is closed.",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --env-file=.env server.js",
+    "vapid": "web-push generate-vapid-keys"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  },
+  "license": "MIT"
+}

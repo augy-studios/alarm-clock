@@ -1,0 +1,5 @@
+# HTTPS in front of the push server. Caddy gets and renews the certificate
+# itself once the DNS record points at this VPS.
+alarm-push.uwuapps.org {
+	reverse_proxy 127.0.0.1:8787
+}

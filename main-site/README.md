@@ -15,7 +15,8 @@ CSS and ES modules with no framework, bundler or build step.
 | `js/icons.js` | Inline SVG icons, looked up by name. |
 | `js/ui.js` | Icon hydration (`data-icon`) and modal open/close. |
 | `js/update.js` | Registers the service worker and shows the "new version is ready" bar. |
-| `sw.js` | Service worker: offline cache and notification clicks. |
+| `js/push.js` | Push subscription and alarm sync with the push server. |
+| `sw.js` | Service worker: offline cache, alarm pushes, and notification clicks. |
 | `manifest.json` | PWA manifest (icons, screenshots, display modes). |
 | `404.html`, `404.css` | Not-found page. |
 | `vercel.json` | Vercel config (clean URLs, `sin1` region). |
@@ -35,18 +36,35 @@ minutes out.
 no audio files to ship. Uploaded tones are played with an `<audio>` element and
 loop until stopped.
 
-**Storage.** Everything stays on the device.
+**Storage.** Everything stays on the device, apart from what background
+alarms send to the push server (below).
 
 | Where | Key | Holds |
 | --- | --- | --- |
 | `localStorage` | `alarmClOwOck.alarms` | The alarm list |
 | `localStorage` | `alarmClOwOck.prefs` | 12h/24h and volume |
+| `localStorage` | `alarmClOwOck.deviceId` | Random id this device uses with the push server |
 | `localStorage` | `uwualarm.mode`, `uwualarm.colorTheme` | Theme choice |
 | IndexedDB | `alarmClOwOckDB` / `tones` | Uploaded ringtone files |
 
 **Notifications.** Shown through the service worker registration when there is
 one, because `new Notification()` throws on Android Chrome and in installed
 PWAs. Clicking a notification focuses the app.
+
+**Background alarms.** Once notification permission is granted, `js/push.js`
+subscribes to Web Push and PUTs the alarm list to the push server
+([`../push-server/`](../push-server/)) on every load and after every change.
+The server checks each device's alarms once a minute in that device's time
+zone and pushes the ones that are due. `sw.js` shows the push as a
+notification with Snooze and Stop buttons. Snooze from a notification is kept
+on the server, since the service worker can't write the alarm list.
+
+With the page open, both the page and the server ring the same alarm. The
+fire key (`"YYYY-MM-DD HH:MM"`) keeps them from ringing twice. The page skips
+a relayed push it has already rung. Both notifications share a tag, so the
+second replaces the first. Each sync's reply lists the alarms the server rang
+while the page was closed, and the page marks those as rung. That turns
+one-time alarms off.
 
 **Theme.** Follows the shared UwU Apps theme spec in
 [`../uwuapps-theme.md`](../uwuapps-theme.md).
@@ -57,8 +75,10 @@ Analytics and ads are never cached. A new worker never takes over on its own: it
 installs and waits until the reader presses **Reload** in the update bar. See
 [`../update-bar-spec.md`](../update-bar-spec.md).
 
-**Limitation.** Alarms are checked by the running page, so they only ring while
-the app is open.
+**Limitation.** With the app closed, an alarm is a single notification with the
+system sound. Looping and the chosen tone need the page open. Without
+notification permission, or when the push server can't be reached, alarms only
+ring while the app is open.
 
 ## Running locally
 
@@ -90,3 +110,5 @@ Vercel serves this folder as a static site. Before each deploy:
   `LIGHT_FROM_HOUR` / `LIGHT_UNTIL_HOUR` in `js/theme.js`. Change them together.
 - The app description is repeated in `index.html` (meta and Open Graph tags)
   and `manifest.json`.
+- `API_BASE` (the push server URL) appears in both `js/push.js` and `sw.js`.
+- `alarmTag()` appears in both `script.js` and `sw.js`.
