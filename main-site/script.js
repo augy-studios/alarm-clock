@@ -1,6 +1,6 @@
 // Alarm Clock
 import { icon } from './js/icons.js';
-import { enableBackgroundAlarms, onServerFired, syncAlarms } from './js/push.js';
+import { disableBackgroundAlarms, enableBackgroundAlarms, onServerFired, syncAlarms } from './js/push.js';
 
 const el = (id) => document.getElementById(id);
 
@@ -142,8 +142,17 @@ notifBtn.addEventListener('click', async () => {
       alert('Your browser does not support notifications.');
       return;
     }
+    if (notificationsOn()) {
+      prefs.notifications = false;
+      save(PREFS_KEY, prefs);
+      showNotifState(false);
+      await disableBackgroundAlarms();
+      return;
+    }
     const perm = await Notification.requestPermission();
-    showNotifState(perm === 'granted');
+    prefs.notifications = perm === 'granted';
+    save(PREFS_KEY, prefs);
+    showNotifState(prefs.notifications);
     if (perm !== 'granted') return;
     const background = await enableBackgroundAlarms(alarms);
     notify('Notifications enabled', {
@@ -305,8 +314,17 @@ function markFired(a, key) {
 
 // ---------- Background alarms (push server) ----------
 
+// On when the browser grants permission and the user hasn't turned them off
+// with the button. `prefs.notifications` is unset for anyone who enabled them
+// before the button could turn them off, and counts as on.
+function notificationsOn() {
+  return 'Notification' in window &&
+    Notification.permission === 'granted' &&
+    prefs.notifications !== false;
+}
+
 function initNotifications() {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!notificationsOn()) return;
   showNotifState(true);
   // Re-sends the alarms on every load, which also refreshes the subscription
   // and picks up anything the server rang while the app was closed.
@@ -427,7 +445,7 @@ async function closeNotifications(tag) {
 // System notification. Goes through the service worker when there is one:
 // `new Notification()` throws on Android Chrome and in installed PWAs.
 async function notify(title, options) {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!notificationsOn()) return;
   try {
     const reg = 'serviceWorker' in navigator ?
       await navigator.serviceWorker.getRegistration() :

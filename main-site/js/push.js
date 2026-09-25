@@ -40,6 +40,29 @@ export async function enableBackgroundAlarms(alarms) {
   }
 }
 
+// Unsubscribe and have the server forget this device, so nothing is pushed
+// to it any more. Browsers don't let a page revoke notification permission
+// itself; this is the closest the page can get.
+export async function disableBackgroundAlarms() {
+  clearTimeout(syncTimer);
+  pendingAlarms = null;
+  if (!pushSupported()) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    await sub?.unsubscribe();
+  } catch (err) {
+    console.warn('unsubscribe failed:', err);
+  }
+  try {
+    await fetch(`${API_BASE}/v1/devices/${deviceId()}`, { method: 'DELETE' });
+  } catch (err) {
+    // The subscription is already gone, so the server drops the device
+    // itself the first time a push to it fails.
+    console.warn('device delete failed:', err);
+  }
+}
+
 // Debounced sync after the alarm list changes. Does nothing unless the
 // device is already subscribed.
 export function syncAlarms(alarms) {
