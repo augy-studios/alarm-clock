@@ -106,7 +106,7 @@ const hits = new Map();
 setInterval(() => hits.clear(), 60_000).unref();
 
 function rateLimited(req) {
-  // Behind Caddy, the client address arrives in X-Forwarded-For. Only trust it
+  // Behind nginx, the client address arrives in X-Forwarded-For. Only trust it
   // when the connection itself comes from the local proxy.
   const direct = req.socket.remoteAddress;
   const local = direct === '127.0.0.1' || direct === '::1' || direct === '::ffff:127.0.0.1';

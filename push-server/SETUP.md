@@ -7,8 +7,8 @@ message. The browser shows that as a notification even with the app closed.
 You'll end up with:
 
 - the Node server running as a systemd service on `127.0.0.1:8787`
-- Caddy in front of it, serving `https://alarm-push.uwuapps.org` with an
-  automatic certificate
+- your existing nginx in front of it, serving `https://alarm-push.uwuapps.org`
+  with a Let's Encrypt certificate from certbot
 - data in `/var/lib/alarm-push/devices.json`
 
 It takes about 15 minutes. Set the server up **before** deploying the site
@@ -35,15 +35,18 @@ nslookup alarm-push.uwuapps.org
 > `alarm-push.uwuapps.org`, and change `API_BASE` in both
 > `main-site/js/push.js` and `main-site/sw.js` to match.
 
-## 2. Install Node, Caddy and git
+## 2. Install Node, certbot and git
 
 SSH into the VPS, then:
 
 ```sh
 sudo apt update
-sudo apt install -y nodejs npm caddy git
+sudo apt install -y nodejs npm git certbot python3-certbot-nginx
 node --version
 ```
+
+nginx is already running on this VPS and keeps ports 80 and 443, so this
+doesn't install another web server.
 
 `node --version` must say `v20.6` or newer. Debian 13's own package is v20,
 which is fine.
@@ -68,7 +71,8 @@ device that set it.
 
 ## 4. Open the web ports
 
-Caddy needs ports 80 (for the certificate) and 443. If you use `ufw`:
+nginx already serves on 80 and 443, so these are probably open. Port 80 is
+needed for the certificate check. If you use `ufw`, make sure:
 
 ```sh
 sudo ufw allow 80,443/tcp
@@ -137,35 +141,37 @@ curl http://127.0.0.1:8787/healthz
 
 That should print `{"ok":true,"devices":0}`.
 
-## 8. Put Caddy in front
+## 8. Add an nginx site for it
 
-If Caddy on this VPS serves nothing else yet, replace its default config:
-
-```sh
-sudo cp deploy/Caddyfile /etc/caddy/Caddyfile
-```
-
-If you already have sites in `/etc/caddy/Caddyfile`, add the block from
-`deploy/Caddyfile` to the end of it instead.
-
-Then:
+Still in `/opt/alarm-clock/push-server`:
 
 ```sh
-sudo systemctl reload caddy
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/alarm-push
+sudo ln -s /etc/nginx/sites-available/alarm-push /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-Give it half a minute to get the certificate, then check from your own
-computer:
+`nginx -t` checks the whole config before anything reloads. If it complains,
+your other sites keep running as they were. Fix what it names, then run the
+line again.
+
+Then get the certificate:
+
+```sh
+sudo certbot --nginx -d alarm-push.uwuapps.org
+```
+
+certbot adds the HTTPS part to `/etc/nginx/sites-available/alarm-push`,
+reloads nginx, and renews the certificate on its own. If it asks whether to
+redirect HTTP to HTTPS, say yes.
+
+Check from your own computer:
 
 ```sh
 curl https://alarm-push.uwuapps.org/healthz
 ```
 
-Same `{"ok":true,...}` reply, now over HTTPS.
-
-> Already running nginx or Apache on ports 80/443? Then skip Caddy. Add a site
-> for `alarm-push.uwuapps.org` that proxies to `http://127.0.0.1:8787` and gets
-> a certificate with certbot.
+You should get the same `{"ok":true,...}` reply, now over HTTPS.
 
 ## 9. Deploy the site
 
@@ -223,7 +229,7 @@ sudo systemctl restart alarm-push
 
 ```sh
 sudo journalctl -u alarm-push -f    # the server
-sudo journalctl -u caddy -f         # HTTPS / certificates
+sudo tail -f /var/log/nginx/error.log  # nginx
 ```
 
 **The confirmation says to keep the app open.** The page couldn't subscribe
@@ -236,8 +242,12 @@ look for `background alarms unavailable:`. Common causes:
   `https://alarm.uwuapps.org` (no trailing slash). Restart after editing it.
 - iPhone not using the Home Screen app: see above.
 
-**Caddy can't get a certificate.** The DNS record isn't pointing here yet, or
-port 80/443 is blocked (step 4, including the provider's firewall).
+**certbot can't get a certificate.** The DNS record isn't pointing here yet,
+or port 80 is blocked (step 4, including the provider's firewall).
+
+**`502 Bad Gateway` from `https://alarm-push.uwuapps.org`.** nginx is fine but
+the Node server isn't running. Check `sudo systemctl status alarm-push` and
+its logs.
 
 **`push to ... failed: 403`** in the logs. The VAPID keys changed after
 devices subscribed. On each device, turn notifications off for the site in
