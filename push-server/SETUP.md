@@ -100,7 +100,7 @@ It prints a **Public Key** and a **Private Key**. Put them in the config file:
 ```sh
 sudo cp .env.example /etc/alarm-push.env
 sudo chmod 600 /etc/alarm-push.env
-sudo nano /etc/alarm-push.env
+sudo micro /etc/alarm-push.env
 ```
 
 Fill in:
@@ -110,7 +110,7 @@ Fill in:
   contact, e.g. `mailto:augybiz@gmail.com`.
 - Leave the rest as they are.
 
-Save with `Ctrl+O`, `Enter`, then exit with `Ctrl+X`.
+Save with `Ctrl+S`, then quit with `Ctrl+Q`.
 
 > **Generate the keys once and keep them.** Every subscription is tied to
 > them. New keys mean every device has to turn notifications off and on again
@@ -176,7 +176,7 @@ for this change.
 
 On your phone:
 
-1. Open https://alarm.uwuapps.org/. If you already had it open, press
+1. Open <https://alarm.uwuapps.org/>. If you already had it open, press
    **Reload** on the update bar.
 2. Press **Enable Notifications** and allow them. The confirmation should say
    *"Alarms will ring even when the app is closed."* If it says to keep the app
