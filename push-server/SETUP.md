@@ -85,6 +85,7 @@ closed, because the server only listens on `127.0.0.1`.
 ## 5. Get the code
 
 ```sh
+cd ~
 sudo git clone https://github.com/augy-studios/alarm-clock.git /opt/alarm-clock
 cd /opt/alarm-clock/push-server
 sudo npm ci --omit=dev
