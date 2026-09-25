@@ -96,12 +96,15 @@ Generate the VAPID keys, which identify your server to the browsers' push
 services:
 
 ```sh
+cd /opt/alarm-clock/push-server
 npx web-push generate-vapid-keys
 ```
 
-It prints a **Public Key** and a **Private Key**. Put them in the config file:
+It prints a **Public Key** and a **Private Key**. Put them in the config file.
+`.env.example` starts with a dot, so plain `ls` doesn't show it; `ls -a` does.
 
 ```sh
+cd /opt/alarm-clock/push-server
 sudo cp .env.example /etc/alarm-push.env
 sudo chmod 600 /etc/alarm-push.env
 sudo micro /etc/alarm-push.env
@@ -123,6 +126,7 @@ Save with `Ctrl+S`, then quit with `Ctrl+Q`.
 ## 7. Start the service
 
 ```sh
+cd /opt/alarm-clock/push-server
 sudo cp deploy/alarm-push.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now alarm-push
@@ -143,9 +147,8 @@ That should print `{"ok":true,"devices":0}`.
 
 ## 8. Add an nginx site for it
 
-Still in `/opt/alarm-clock/push-server`:
-
 ```sh
+cd /opt/alarm-clock/push-server
 sudo cp deploy/nginx.conf /etc/nginx/sites-available/alarm-push
 sudo ln -s /etc/nginx/sites-available/alarm-push /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
