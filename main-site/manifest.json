@@ -1,7 +1,7 @@
 {
     "name": "Alarm Clock by UwU Apps",
     "short_name": "Alarm Clock",
-    "description": "A simple, free alarm clock in your browser. Set repeating alarms with labels, pick a tone or upload your own, and install it to use offline.",
+    "description": "A free alarm clock in your browser. Set repeating alarms with labels, pick a tone or upload your own, and get alarms even with the app closed.",
     "icons": [{
             "src": "XAC-192.png",
             "type": "image/png",

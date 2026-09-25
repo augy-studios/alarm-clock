@@ -1,7 +1,7 @@
 /* Bump VERSION on every deploy that changes anything this worker serves.
    The browser only sees an update when this file changes byte for byte, so a
    forgotten bump means nobody gets the new version or the update bar. */
-const VERSION = "2026-09-25.1";
+const VERSION = "2026-09-25.2";
 const CACHE = `alarm-${VERSION}`;
 
 // Not "/index.html": cleanUrls redirects it to "/", and a redirected response
