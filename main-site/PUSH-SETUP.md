@@ -159,6 +159,9 @@ npx vercel env pull .env.local
 npx vercel dev
 ```
 
+[`.env.example`](.env.example) lists every variable the functions read, if
+you'd rather fill `.env.local` in by hand.
+
 `vercel dev` serves the site and the functions together, by default on
 <http://localhost:3000>. Cron doesn't run locally, so trigger a minute by hand
 with the `CRON_SECRET` from `.env.local`:

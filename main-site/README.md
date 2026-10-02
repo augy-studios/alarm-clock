@@ -20,6 +20,7 @@ Vercel functions in `api/` for background alarms.
 | `sw.js` | Service worker: offline cache, alarm pushes, and notification clicks. |
 | `api/` | Vercel functions that store each device's alarms and push them at alarm time. See [PUSH-SETUP](PUSH-SETUP.md). |
 | `package.json` | Dependencies of `api/` (`web-push`, `@upstash/redis`). The page itself has none. |
+| `.env.example` | The environment variables `api/` reads. |
 | `manifest.json` | PWA manifest (icons, screenshots, display modes). |
 | `404.html`, `404.css` | Not-found page. |
 | `vercel.json` | Vercel config (clean URLs, `sin1` region, the every-minute cron for `api/tick.js`). |
