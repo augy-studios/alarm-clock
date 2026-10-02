@@ -27,8 +27,8 @@ Part of [UwU Apps](https://uwuapps.org/) by Augy Studios.
 
 There is no account. Alarms and uploaded tones are stored in the browser. When
 notifications are on, the alarm times and labels, the time zone and a push
-subscription are also sent to the push server so it can ring them while the
-app is closed.
+subscription are also sent to the site's push functions so they can ring them
+while the app is closed.
 
 > With the app closed, an alarm is a notification with the system sound: it
 > doesn't loop or play the chosen tone. On iPhone it only works once the app is
@@ -38,8 +38,9 @@ app is closed.
 
 | Path | What it is |
 | --- | --- |
-| [`main-site/`](main-site/) | The site itself: static HTML, CSS and JS, deployed to Vercel. See its [README](main-site/README.md). |
-| [`push-server/`](push-server/) | Node server on a Debian VPS that sends the Web Push for background alarms. See its [SETUP](push-server/SETUP.md). |
+| [`main-site/`](main-site/) | The site itself: static HTML, CSS and JS, plus the Vercel functions in `api/` that send the Web Push for background alarms. See its [README](main-site/README.md) and [PUSH-SETUP](main-site/PUSH-SETUP.md). |
+| [`scripts/`](scripts/) | One-off import of the old VPS push server's data. |
+| [`push-server-teardown.md`](push-server-teardown.md) | Moving background alarms off the VPS, and removing the old push server from it. |
 | [`uwuapps-theme.md`](uwuapps-theme.md) | Shared UwU Apps theme spec (brand colours, light/dark/time mode). |
 | [`uwuapps-retrofit-time-mode.md`](uwuapps-retrofit-time-mode.md) | Prompt for adding time-based mode to an app that already has the theme system. |
 | [`update-bar-spec.md`](update-bar-spec.md) | Spec for the service worker update bar. |
@@ -57,8 +58,10 @@ or HTTPS, so opening `index.html` straight from disk won't work fully.
 
 ## Deploying
 
-`main-site/` is deployed to Vercel as a static site (config in
-[`main-site/vercel.json`](main-site/vercel.json)). Before each deploy, bump
+`main-site/` is deployed to Vercel as a static site with a few functions
+(config in [`main-site/vercel.json`](main-site/vercel.json)). Background
+alarms need a one-time setup; see
+[`main-site/PUSH-SETUP.md`](main-site/PUSH-SETUP.md). Before each deploy, bump
 `VERSION` in [`main-site/sw.js`](main-site/sw.js), or nobody gets the new
 version. See the [main-site README](main-site/README.md#deploying) for details.
 

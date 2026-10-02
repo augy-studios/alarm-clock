@@ -1,12 +1,12 @@
 // Checks what the app sends before it is stored. Anything that fails throws
-// a ValidationError, which the server turns into a 400.
+// a ValidationError, which handle() in http.js turns into a 400.
 
 export const MAX_ALARMS = 100;
 export const MAX_LABEL = 60;
 
 // The server POSTs to whatever endpoint a subscription names, so only the
 // browsers' own push services are accepted. Otherwise anyone could point it at
-// an arbitrary URL, including ones inside this VPS.
+// an arbitrary URL.
 const PUSH_HOSTS = [
   'fcm.googleapis.com', // Chrome, Edge on Android, Samsung Internet, Opera
   '.push.services.mozilla.com', // Firefox

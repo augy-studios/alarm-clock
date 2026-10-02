@@ -1,10 +1,10 @@
 // Background alarms. The page subscribes to Web Push and sends its alarm list
-// to the push server (push-server/ in this repo), which pushes at alarm time
-// so the alarm reaches the device while the app is closed. The page still
-// rings on its own while it is open; the fire key keeps the two from doubling.
+// to the push functions (api/ in this folder), which push at alarm time so
+// the alarm reaches the device while the app is closed. The page still rings
+// on its own while it is open; the fire key keeps the two from doubling.
 
 // Keep in step with API_BASE in sw.js.
-export const API_BASE = 'https://alarm-push.uwuapps.org';
+export const API_BASE = '/api';
 const DEVICE_KEY = 'alarmClOwOck.deviceId';
 const SYNC_DELAY_MS = 500;
 
@@ -55,7 +55,7 @@ export async function disableBackgroundAlarms() {
     console.warn('unsubscribe failed:', err);
   }
   try {
-    await fetch(`${API_BASE}/v1/devices/${deviceId()}`, { method: 'DELETE' });
+    await fetch(`${API_BASE}/device?id=${deviceId()}`, { method: 'DELETE' });
   } catch (err) {
     // The subscription is already gone, so the server drops the device
     // itself the first time a push to it fails.
@@ -91,7 +91,7 @@ window.addEventListener('online', () => {
 });
 
 async function sync(sub, alarms) {
-  const res = await fetch(`${API_BASE}/v1/devices/${deviceId()}`, {
+  const res = await fetch(`${API_BASE}/device?id=${deviceId()}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -135,7 +135,7 @@ function readyRegistration() {
 }
 
 async function fetchPublicKey() {
-  const res = await fetch(`${API_BASE}/v1/vapid-key`);
+  const res = await fetch(`${API_BASE}/vapid-key`);
   if (!res.ok) throw new Error(`push server replied ${res.status}`);
   const { publicKey } = await res.json();
   return base64UrlToBytes(publicKey);

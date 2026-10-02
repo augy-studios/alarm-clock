@@ -1,7 +1,7 @@
 /* Bump VERSION on every deploy that changes anything this worker serves.
    The browser only sees an update when this file changes byte for byte, so a
    forgotten bump means nobody gets the new version or the update bar. */
-const VERSION = "2026-09-25.2";
+const VERSION = "2026-10-03.1";
 const CACHE = `alarm-${VERSION}`;
 
 // Not "/index.html": cleanUrls redirects it to "/", and a redirected response
@@ -63,10 +63,10 @@ self.addEventListener('message', (event) => {
   }
 });
 
-/* -- Push: an alarm rung by the push server (push-server/ in this repo) -- */
+/* -- Push: an alarm rung by the push functions (api/ in this folder) -- */
 
 // Keep in step with API_BASE in js/push.js.
-const API_BASE = 'https://alarm-push.uwuapps.org';
+const API_BASE = '/api';
 
 // Keep in step with alarmTag() in script.js. The page shows a notification
 // with the same tag when it rings, so the two replace each other.
@@ -140,7 +140,7 @@ self.addEventListener('notificationclose', event => {
 async function snooze(data) {
   if (!data?.deviceId) return;
   try {
-    await fetch(`${API_BASE}/v1/devices/${data.deviceId}/snooze`, {
+    await fetch(`${API_BASE}/snooze?id=${data.deviceId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ label: data.label })

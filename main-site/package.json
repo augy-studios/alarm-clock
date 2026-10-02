@@ -1,0 +1,14 @@
+{
+  "name": "alarm-clock",
+  "private": true,
+  "description": "Alarm Clock web app, and the Vercel functions that push alarms while it is closed.",
+  "type": "module",
+  "scripts": {
+    "vapid": "web-push generate-vapid-keys"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.35.0",
+    "web-push": "^3.6.7"
+  },
+  "license": "MIT"
+}

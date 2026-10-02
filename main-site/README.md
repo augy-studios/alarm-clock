@@ -1,7 +1,8 @@
 # main-site
 
 The Alarm Clock web app, served at <https://alarm.uwuapps.org/>. Plain HTML,
-CSS and ES modules with no framework, bundler or build step.
+CSS and ES modules with no framework, bundler or build step, plus a few
+Vercel functions in `api/` for background alarms.
 
 ## Files
 
@@ -15,11 +16,13 @@ CSS and ES modules with no framework, bundler or build step.
 | `js/icons.js` | Inline SVG icons, looked up by name. |
 | `js/ui.js` | Icon hydration (`data-icon`) and modal open/close. |
 | `js/update.js` | Registers the service worker and shows the "new version is ready" bar. |
-| `js/push.js` | Push subscription and alarm sync with the push server. |
+| `js/push.js` | Push subscription and alarm sync with the push functions. |
 | `sw.js` | Service worker: offline cache, alarm pushes, and notification clicks. |
+| `api/` | Vercel functions that store each device's alarms and push them at alarm time. See [PUSH-SETUP](PUSH-SETUP.md). |
+| `package.json` | Dependencies of `api/` (`web-push`, `@upstash/redis`). The page itself has none. |
 | `manifest.json` | PWA manifest (icons, screenshots, display modes). |
 | `404.html`, `404.css` | Not-found page. |
-| `vercel.json` | Vercel config (clean URLs, `sin1` region). |
+| `vercel.json` | Vercel config (clean URLs, `sin1` region, the every-minute cron for `api/tick.js`). |
 | `.well-known/assetlinks.json` | Digital Asset Links for the Android app `org.uwuapps.alarm`. |
 | `XAC-*.png`, `favicon.ico`, `browserconfig.xml` | Icons. |
 | `images/` | Screenshots used in the manifest's install UI. |
@@ -37,13 +40,13 @@ no audio files to ship. Uploaded tones are played with an `<audio>` element and
 loop until stopped.
 
 **Storage.** Everything stays on the device, apart from what background
-alarms send to the push server (below).
+alarms send to the push functions (below).
 
 | Where | Key | Holds |
 | --- | --- | --- |
 | `localStorage` | `alarmClOwOck.alarms` | The alarm list |
 | `localStorage` | `alarmClOwOck.prefs` | 12h/24h and volume |
-| `localStorage` | `alarmClOwOck.deviceId` | Random id this device uses with the push server |
+| `localStorage` | `alarmClOwOck.deviceId` | Random id this device uses with the push functions |
 | `localStorage` | `uwualarm.mode`, `uwualarm.colorTheme` | Theme choice |
 | IndexedDB | `alarmClOwOckDB` / `tones` | Uploaded ringtone files |
 
@@ -52,12 +55,13 @@ one, because `new Notification()` throws on Android Chrome and in installed
 PWAs. Clicking a notification focuses the app.
 
 **Background alarms.** Once notification permission is granted, `js/push.js`
-subscribes to Web Push and PUTs the alarm list to the push server
-([`../push-server/`](../push-server/)) on every load and after every change.
-The server checks each device's alarms once a minute in that device's time
-zone and pushes the ones that are due. `sw.js` shows the push as a
+subscribes to Web Push and PUTs the alarm list to `/api/device` on every load
+and after every change. The functions keep it in Upstash Redis. A Vercel Cron
+job (`api/tick.js`) checks each device's alarms once a minute in that device's
+time zone and pushes the ones that are due. `sw.js` shows the push as a
 notification with Snooze and Stop buttons. Snooze from a notification is kept
-on the server, since the service worker can't write the alarm list.
+on the server (`/api/snooze`), since the service worker can't write the alarm
+list. Setup is in [`PUSH-SETUP.md`](PUSH-SETUP.md).
 
 With the page open, both the page and the server ring the same alarm. The
 fire key (`"YYYY-MM-DD HH:MM"`) keeps them from ringing twice. The page skips
@@ -77,8 +81,8 @@ installs and waits until the reader presses **Reload** in the update bar. See
 
 **Limitation.** With the app closed, an alarm is a single notification with the
 system sound. Looping and the chosen tone need the page open. Without
-notification permission, or when the push server can't be reached, alarms only
-ring while the app is open.
+notification permission, or when the push functions can't be reached, alarms
+only ring while the app is open.
 
 ## Running locally
 
@@ -88,13 +92,17 @@ npx serve .
 
 Run it from this folder, or use any other static server. Use `localhost` or
 HTTPS, since service workers and notifications don't work from `file://`.
+A static server doesn't run `api/`, so background alarms stay off. To run
+those too, use `npx vercel dev` (see [PUSH-SETUP](PUSH-SETUP.md#testing-locally)).
 
 While testing service worker changes, turn on "Update on reload" in DevTools →
 Application → Service workers, or you will keep seeing the cached version.
 
 ## Deploying
 
-Vercel serves this folder as a static site. Before each deploy:
+Vercel serves this folder as a static site, with the functions in `api/`. They
+need Redis and a few environment variables set up once; see
+[PUSH-SETUP](PUSH-SETUP.md). Before each deploy:
 
 1. **Bump `VERSION` in `sw.js`** (format `YYYY-MM-DD.n`). The browser only sees
    an update when `sw.js` changes byte for byte. If you forget, nobody gets the
@@ -110,5 +118,7 @@ Vercel serves this folder as a static site. Before each deploy:
   `LIGHT_FROM_HOUR` / `LIGHT_UNTIL_HOUR` in `js/theme.js`. Change them together.
 - The app description is repeated in `index.html` (meta and Open Graph tags)
   and `manifest.json`.
-- `API_BASE` (the push server URL) appears in both `js/push.js` and `sw.js`.
+- `API_BASE` (`/api`) appears in both `js/push.js` and `sw.js`.
+- The Redis key names in `api/_lib/redis.js` are repeated in
+  `../scripts/import-push-devices.mjs`.
 - `alarmTag()` appears in both `script.js` and `sw.js`.

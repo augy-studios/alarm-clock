@@ -1,0 +1,6 @@
+node_modules/
+.vercel/
+.env*.local
+.env
+# The old VPS push server's data, copied down for scripts/import-push-devices.mjs.
+devices.json
